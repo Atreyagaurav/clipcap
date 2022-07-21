@@ -21,7 +21,14 @@ struct Cli {
 }
 
 
-fn mainloop(clip:LinuxClipboardKind, args:Cli) {
+fn main() {
+    let args = Cli::parse();
+
+    let mut clip = LinuxClipboardKind::Clipboard;
+    if args.primary {
+	clip = LinuxClipboardKind::Primary;
+    }
+    
     let mut ctx = Clipboard::new().unwrap();
     let mut clip_txt = ctx.get_text_with_clipboard(clip).unwrap();
     loop {
@@ -40,13 +47,4 @@ fn mainloop(clip:LinuxClipboardKind, args:Cli) {
 	}
 	thread::sleep(time::Duration::from_millis(10));
     }
-}
-
-fn main() {
-    let args = Cli::parse();
-    let mut clipboard = LinuxClipboardKind::Clipboard;
-    if args.primary {
-	clipboard = LinuxClipboardKind::Primary;
-    }
-    mainloop(clipboard, args);
 }
