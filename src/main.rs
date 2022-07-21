@@ -6,6 +6,9 @@ use arboard::{Clipboard, ClipboardExtLinux, LinuxClipboardKind};
 
 #[derive(Parser)]
 struct Cli {
+    /// Do not print anything to stdout, ignores `separator`
+    #[clap(short, long, action)]
+    quiet: bool,
     /// Use Primary Selection instead of Clipboard
     #[clap(short, long, action)]
     primary: bool,
@@ -25,8 +28,10 @@ fn mainloop(clip:LinuxClipboardKind, args:Cli) {
 	let clip_new = ctx.get_text_with_clipboard(clip).unwrap();
 
 	if clip_new != clip_txt {
-	    print!("{}{}", clip_new, args.separator);
-	    io::stdout().flush().unwrap();
+	    if !args.quiet {
+		print!("{}{}", clip_new, args.separator);
+		io::stdout().flush().unwrap();
+	    }
 	    if !args.command.is_empty() {
 		let mut cmd = Command::new(args.command.clone());
 		cmd.arg(clip_new.clone()).output().expect("Command Failed.");
