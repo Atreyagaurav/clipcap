@@ -1,0 +1,21 @@
+* clipcap
+
+Clipboard Capture for Linux, it can capture the contents of clipboard (or primary selection), as it changes when the program is running and print it to stdout. You can also choose to run some command on each capture.
+
+For e.g. running with arguments ~-p -c "notify-send"~ will send notification each time you select something.
+
+Made to replace and add more functionality to:
+- https://github.com/Atreyagaurav/scripts/blob/main/capture_clipboard.py
+
+* features
+- print captured contents to stdout with custom deliminator,
+- run command for each capture,
+- support for primary selection along with clipboard.
+
+* Notes
+The command can only be proper command, so if you want to run something complex make a script file that only takes one argument and make that script executable and pass it as command.
+
+I made this for dictionary search. So my use-case is just selecting one word to run the command for dictionary to get that word, so I haven't tested for variety of scenarios.
+
+* Future plans
+Config file to write templates, like 'notify' template will have ~notify-send~ command. The templates should be able to have position for captured text instead of adding it at the end like now.
