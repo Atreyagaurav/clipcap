@@ -1,5 +1,5 @@
 use std::{io, thread, time};
-use std::io::Write;
+use std::io::Write;		// for flush
 use std::process::Command;
 use clap::Parser;
 use arboard::{Clipboard, ClipboardExtLinux, LinuxClipboardKind};
@@ -15,9 +15,12 @@ struct Cli {
     /// Character between two entries
     #[clap(short, long, default_value = "\n")]
     separator: String,
-    /// Template command to run on each entry
+    /// Command to run on each entry
     #[clap(short, long, default_value = "")]
     command: String,
+    /// Refresh Rate in miliseconds
+    #[clap(short, long, default_value = "200")]
+    refresh_rate: u64,
 }
 
 
@@ -45,6 +48,6 @@ fn main() {
 	    }
 	    clip_txt = clip_new;
 	}
-	thread::sleep(time::Duration::from_millis(10));
+	thread::sleep(time::Duration::from_millis(args.refresh_rate));
     }
 }
