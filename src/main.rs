@@ -33,9 +33,9 @@ fn main() {
     }
     
     let mut ctx = Clipboard::new().unwrap();
-    let mut clip_txt = ctx.get_text_with_clipboard(clip).unwrap();
+    let mut clip_txt = ctx.get_text_with_clipboard(clip).unwrap_or_else(|_| String::from(""));
     loop {
-	let clip_new = ctx.get_text_with_clipboard(clip).unwrap();
+	let clip_new = ctx.get_text_with_clipboard(clip).unwrap_or_else(|_| String::from(""));
 
 	if clip_new != clip_txt {
 	    if !args.quiet {
