@@ -11,7 +11,8 @@ Made to replace and add more functionality to:
 - print captured contents to stdout with custom deliminator,
 - run command for each capture,
 - support for primary selection along with clipboard.
-
+- save the capture to a file, (or append)
+  
 * Notes
 The command can only be proper command, so if you want to run something complex make a script file that only takes one argument and make that script executable and pass it as command.
 

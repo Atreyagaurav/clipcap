@@ -1,5 +1,6 @@
-use std::{io, thread, time};
+use std::{io, thread, time, env};
 use std::io::Write;		// for flush
+use std::fs;
 use std::process::Command;
 use clap::Parser;
 use arboard::{Clipboard, ClipboardExtLinux, LinuxClipboardKind};
@@ -15,6 +16,15 @@ struct Cli {
     /// Character between two entries
     #[clap(short, long, default_value = "\n")]
     separator: String,
+    /// Do not clear output file before writing to it
+    #[clap(short, long, action)]
+    append: bool,
+    /// Output File to write the captured contents. By default it'll
+    /// make a file /tmp/clipcap.txt and write the output there
+    #[clap(parse(from_os_str), short, long, default_value = "")]
+    // TODO couldn't figure out how to use
+    // `env::temp_dir().join("clipcap.txt").to_str().unwrap()` here
+    output: std::path::PathBuf,
     /// Command to run on each entry
     #[clap(short, long, default_value = "")]
     command: String,
@@ -28,9 +38,27 @@ fn main() {
     let args = Cli::parse();
 
     let mut clip = LinuxClipboardKind::Clipboard;
+    // TODO mark this unavailable for windows
     if args.primary {
 	clip = LinuxClipboardKind::Primary;
     }
+
+    // TODO need a way to not open file without need, conditional
+    // fails to compile. So I had to use a temp file to make sure the
+    // file variable is never uninitialized.
+    let mut out_file = env::temp_dir().join("clipcap.txt");
+
+    if !args.output.as_os_str().is_empty() {
+	out_file = args.output;
+    }
+    
+    let mut file = fs::OpenOptions::new()
+	.write(true)
+	.create(true)
+	.append(args.append)
+	.truncate(!args.append)
+	.open(out_file)
+	.unwrap();
     
     let mut ctx = Clipboard::new().unwrap();
     let mut clip_txt = ctx.get_text_with_clipboard(clip).unwrap_or_else(|_| String::from(""));
@@ -42,6 +70,10 @@ fn main() {
 		print!("{}{}", clip_new, args.separator);
 		io::stdout().flush().unwrap();
 	    }
+
+	    file.write_all(clip_new.as_bytes()).expect("Unable to write to file.");
+	    file.write_all(args.separator.as_bytes()).expect("Unable to write to file.");
+	    
 	    if !args.command.is_empty() {
 		let mut cmd = Command::new(args.command.clone());
 		cmd.arg(clip_new.clone()).output().expect("Command Failed.");
