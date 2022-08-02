@@ -1,4 +1,4 @@
-use std::{io, thread, time};
+use std::{io, thread, time, process};
 use std::io::Write;		// for flush
 use std::fs;
 use std::process::Command;
@@ -41,6 +41,11 @@ struct Cli {
 fn main() {
     let args = Cli::parse();
 
+    if !atty::is(atty::Stream::Stdout) && args.count == 0 {
+	eprintln!("You have to provide the --count > 0 while piped to avoid infinite loop.");
+	process::exit(1);
+    }
+
     #[cfg(target_os="linux")]
     let clip;
 
@@ -54,7 +59,8 @@ fn main() {
 
     #[cfg(not(target_os="linux"))]
     if args.primary {
-	println!("Primary Clipboard is not available for {}", cfg!(target_os));
+	println!("Primary Clipboard is not available for {}", std::env::consts::OS);
+	process::exit(1);
     }
 
     let mut file:Option<fs::File> = None;
@@ -96,7 +102,10 @@ fn main() {
 	    }
 	    if !args.command.is_empty() {
 		let mut cmd = Command::new(args.command.clone());
-		cmd.arg(clip_new.clone()).output().expect("Command Failed.");
+		match cmd.arg(clip_new.clone()).output() {
+		    Ok(_) => None,
+		    Err(e) => Some(eprintln!("Error Executing Command: {}", e)),
+		};
 	    }
 
 	    clip_txt = clip_new;

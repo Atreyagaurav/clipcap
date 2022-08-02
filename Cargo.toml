@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 arboard="2"
 clap={ version = "3.0", features = ["derive"] }
+atty="0.2"
