@@ -1,16 +1,20 @@
-use std::{io, thread, time};
+use std::{io, thread, time, process};
 use std::io::Write;		// for flush
 use std::fs;
 use std::process::Command;
 use clap::Parser;
-use arboard::{Clipboard, ClipboardExtLinux, LinuxClipboardKind};
+
+use arboard::Clipboard;
+
+#[cfg(target_os="linux")]
+use arboard::{ClipboardExtLinux, LinuxClipboardKind};
 
 #[derive(Parser)]
 struct Cli {
     /// Do not print anything to stdout, ignores `separator`
     #[clap(short, long, action)]
     quiet: bool,
-    /// Use Primary Selection instead of Clipboard
+    /// Use Primary Selection instead of Clipboard (Linux)
     #[clap(short, long, action)]
     primary: bool,
     /// Separator between two entries for output
@@ -37,12 +41,28 @@ struct Cli {
 fn main() {
     let args = Cli::parse();
 
-    let mut clip = LinuxClipboardKind::Clipboard;
-    // TODO mark this unavailable for windows
-    if args.primary {
-	clip = LinuxClipboardKind::Primary;
+    if !atty::is(atty::Stream::Stdout) && args.count == 0 {
+	eprintln!("You have to provide the --count > 0 while piped to avoid infinite loop.");
+	process::exit(1);
     }
-    
+
+    #[cfg(target_os="linux")]
+    let clip;
+
+    #[cfg(target_os="linux")]
+    if args.primary {
+	clip = Some(LinuxClipboardKind::Primary);
+    } else {
+	clip = Some(LinuxClipboardKind::Clipboard);
+    }
+
+
+    #[cfg(not(target_os="linux"))]
+    if args.primary {
+	println!("Primary Clipboard is not available for {}", std::env::consts::OS);
+	process::exit(1);
+    }
+
     let mut file:Option<fs::File> = None;
     if !args.output.as_os_str().is_empty() {
 	file = Some(fs::OpenOptions::new()
@@ -54,11 +74,21 @@ fn main() {
 		    .unwrap());
     }
     let mut ctx = Clipboard::new().unwrap();
-    let mut clip_txt = ctx.get_text_with_clipboard(clip).unwrap_or_else(|_| String::from(""));
+
+    #[cfg(target_os="linux")]
+    let mut clip_txt = ctx.get_text_with_clipboard(clip.unwrap()).unwrap_or_else(|_| String::from(""));
+
+    #[cfg(not(target_os="linux"))]
+    let mut clip_txt = ctx.get_text().unwrap_or_else(|_| String::from(""));
 
     let mut counter = 0;
     loop {
-	let clip_new = ctx.get_text_with_clipboard(clip).unwrap_or_else(|_| String::from(""));
+
+	#[cfg(target_os="linux")]
+	let clip_new = ctx.get_text_with_clipboard(clip.unwrap()).unwrap_or_else(|_| String::from(""));
+
+	#[cfg(not(target_os="linux"))]
+	let clip_new = ctx.get_text().unwrap_or_else(|_| String::from(""));
 
 	if clip_new != clip_txt {
 
@@ -66,13 +96,16 @@ fn main() {
 		print!("{}{}", clip_new, args.separator);
 		io::stdout().flush().unwrap();
 	    }
-	    if !file.is_none(){
+	    if file.is_some(){
 		file.as_ref().unwrap().write_all(clip_new.as_bytes()).expect("Unable to write to file.");
 		file.as_ref().unwrap().write_all(args.separator.as_bytes()).expect("Unable to write to file.");
 	    }
 	    if !args.command.is_empty() {
 		let mut cmd = Command::new(args.command.clone());
-		cmd.arg(clip_new.clone()).output().expect("Command Failed.");
+		match cmd.arg(clip_new.clone()).output() {
+		    Ok(_) => None,
+		    Err(e) => Some(eprintln!("Error Executing Command: {}", e)),
+		};
 	    }
 
 	    clip_txt = clip_new;
