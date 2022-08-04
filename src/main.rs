@@ -3,6 +3,7 @@ use std::io::Write;		// for flush
 use std::fs;
 use std::process::Command;
 use clap::Parser;
+use regex::Regex;
 
 use arboard::Clipboard;
 
@@ -29,6 +30,9 @@ struct Cli {
     /// Command to run on each entry
     #[clap(short, long, default_value = "")]
     command: String,
+    /// Filter the capture to matching regex pattern
+    #[clap(short, long, default_value = "")]
+    filter: String,
     /// Refresh Rate in miliseconds
     #[clap(short, long, default_value = "200")]
     refresh_rate: u64,
@@ -55,6 +59,12 @@ fn main() {
     } else {
 	clip = Some(LinuxClipboardKind::Clipboard);
     }
+    
+    let regex_pattern = if args.filter.is_empty(){
+	None
+    } else {
+	Some(Regex::new(&args.filter).unwrap())
+    };
 
 
     #[cfg(not(target_os="linux"))]
@@ -91,7 +101,12 @@ fn main() {
 	let clip_new = ctx.get_text().unwrap_or_else(|_| String::from(""));
 
 	if clip_new != clip_txt {
-
+	    if regex_pattern.as_ref().is_some(){
+		if !regex_pattern.as_ref().unwrap().is_match(&clip_new){
+		    clip_txt = clip_new;
+		    continue;
+		}
+	    }
 	    if !args.quiet {
 		print!("{}{}", clip_new, args.separator);
 		io::stdout().flush().unwrap();
