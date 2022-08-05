@@ -7,12 +7,56 @@ For e.g. running with arguments ~-p -c "notify-send"~ will send notification eac
 Made to replace and add more functionality to:
 - https://github.com/Atreyagaurav/scripts/blob/main/capture_clipboard.py
 
-* features
+* Features
 - print captured contents to stdout with custom deliminator,
 - run command for each capture,
 - support for primary selection along with clipboard.
 - save the capture to a file, (or append)
-  
+- filter the capture by a regex pattern
+** Demo
+
+Demo showing simple capture and primary capture.
+
+[[./images/clipcap-demo-clip.gif]]
+
+Demo showing Capture filtering, command execution and fix number of captures.
+
+[[./images/clipcap-demo-pattern.gif]]
+
+
+* Usage Flags
+** append
+  ~-a, --append                         Do not clear output file before writing to it~
+  Use with ~-o~ flag, writes the new contents at the end of the output file.
+** command
+  ~-c, --command <COMMAND>              Command to run on each entry [default: ]~
+  Runs the given command for each capture. The command should just be the name of a binary in your path or path to a script. The script cannot take arguments, so make a script that takes single argument (capture content).
+** filter
+  ~-f, --filter <FILTER>                Filter the capture to matching regex pattern [default: ]~
+  Filters the capture, only the capture that contain the given filter will be captured and others will be discarded. It is from the ~regex~ crate.
+** help
+  ~-h, --help                           Print help information~
+** count
+  ~-n, --count <COUNT>                  Only capture this many times, 0 for infinity [default: 0]~
+  To be used in scripts to not make programs wait forever. It'll end after ~COUNT~ capture.
+** output
+  ~-o, --output <OUTPUT>                Output File to write the captured contents [default: ]~
+  File to write the capture to, use ~-a~ flag with this to append instead.
+** primary
+  ~-p, --primary                        Use Primary Selection instead of Clipboard (Linux)~
+  For Linux it can capture the primary selection so you don't have to copy the text. Most useful for me, specially to highlight words and use ~-c~ to send that word to dictionary.
+** quiet
+  ~-q, --quiet                          Do not print anything to stdout, ignores `separator`~
+** refresh-rate
+  ~-r, --refresh-rate <REFRESH_RATE>    Refresh Rate in miliseconds [default: 200]~ checked
+  It is how often the clipboard content is checked, too often means you'll have high CPU usage, too infrequent and you might miss something. You probably aren't super faster, so put a reasonable time.
+** separator
+  ~-s, --separator <SEPARATOR>          Separator between two entries for output [default: "\n"]~ some
+  Separator between the capture, if capturing some co-ordinates or some values you can put something like ~", "~ or sth.
+
+  # TODO: Fix this, it can't be used now.
+  # Can also be useful for separating multiline capture by putting something like "\n*******\n" or sth.
+
 * Notes
 The command can only be proper command, so if you want to run something complex make a script file that only takes one argument and make that script executable and pass it as command.
 
@@ -20,3 +64,5 @@ I made this for dictionary search. So my use-case is just selecting one word to 
 
 * Future plans
 Config file to write templates, like 'notify' template will have ~notify-send~ command. The templates should be able to have position for captured text instead of adding it at the end like now.
+
+Templates should be able to make a lot of things easier, as well as a default.
