@@ -49,17 +49,17 @@ fn main() {
         process::exit(1);
     }
 
+    let regex_pattern = if args.filter.is_empty() {
+        None
+    } else {
+        Some(Regex::new(&args.filter).unwrap())
+    };
+
     #[cfg(target_os = "linux")]
     let clip = if args.primary {
         Some(LinuxClipboardKind::Primary)
     } else {
         Some(LinuxClipboardKind::Clipboard)
-    };
-
-    let regex_pattern = if args.filter.is_empty() {
-        None
-    } else {
-        Some(Regex::new(&args.filter).unwrap())
     };
 
     #[cfg(not(target_os = "linux"))]
