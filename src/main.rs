@@ -1,44 +1,119 @@
-use clap::Parser;
+use clap::{ArgGroup, Parser};
+use image::{DynamicImage, RgbaImage};
 use regex::Regex;
 use std::fs;
-use std::io::Write; // for flush
+use std::io::Write;
+// for flush
+use std::path::Path;
 use std::process::Command;
 use std::{io, process, thread, time};
+use string_template_plus::{Render, RenderOptions, Template};
 
-use arboard::Clipboard;
+use arboard::{Clipboard, Error, ImageData};
 
 #[cfg(target_os = "linux")]
 use arboard::{ClipboardExtLinux, LinuxClipboardKind};
 
 #[derive(Parser)]
+#[command(group = ArgGroup::new("text").required(false).multiple(true))]
 struct Cli {
     /// Do not print anything to stdout, ignores `separator`
-    #[clap(short, long, action)]
+    #[arg(short, long, action)]
     quiet: bool,
     /// Use Primary Selection instead of Clipboard (Linux)
-    #[clap(short, long, action)]
+    #[arg(short, long, group = "text", action)]
     primary: bool,
     /// Separator between two entries for output
-    #[clap(short, long, default_value = "\n")]
+    #[arg(short, long, group = "text", default_value = "\n")]
     separator: String,
     /// Do not clear output file before writing to it
-    #[clap(short, long, action)]
+    #[arg(short, long, group = "text", action)]
     append: bool,
     /// Output File to write the captured contents.
-    #[clap(parse(from_os_str), short, long, default_value = "")]
-    output: std::path::PathBuf,
+    #[arg(short, long, group = "text")]
+    output: Option<std::path::PathBuf>,
     /// Command to run on each entry
-    #[clap(short, long, default_value = "")]
+    #[arg(short, long, default_value = "")]
     command: String,
     /// Filter the capture to matching regex pattern
-    #[clap(short, long, default_value = "")]
+    #[arg(short, long, group = "text", default_value = "")]
     filter: String,
+    /// Image file template
+    #[arg(short, long, conflicts_with = "text", value_parser=Template::parse_template)]
+    image: Option<Template>,
     /// Refresh Rate in miliseconds
-    #[clap(short, long, default_value = "200")]
+    #[arg(short, long, default_value = "200")]
     refresh_rate: u64,
     /// Only capture this many times, 0 for infinity
-    #[clap(short = 'n', long, default_value = "0")]
+    #[arg(short = 'n', long, default_value = "0")]
     count: u64,
+}
+
+fn clipboard_image_changed(
+    old: &Result<ImageData<'_>, Error>,
+    new: &Result<ImageData<'_>, Error>,
+) -> bool {
+    match (old, new) {
+        (Ok(o), Ok(n)) => {
+            if (o.height, o.width) != (n.height, n.width) {
+                true
+            } else {
+                // this is really intensive if it's the same
+                // image. and the image is huge.
+                o.bytes != o.bytes
+            }
+        }
+        (Err(_), Ok(_)) => true,
+        (_, Err(_)) => false,
+    }
+}
+
+fn save_image<P: AsRef<Path>>(img: &ImageData, filename: P) -> bool {
+    let img = RgbaImage::from_raw(img.width as u32, img.height as u32, img.bytes.to_vec())
+        .expect("Clipboard ImageData is invalid");
+    if let Err(e) = DynamicImage::ImageRgba8(img).save(filename.as_ref()) {
+        eprintln!("f:{:?}", e);
+        false
+    } else {
+        true
+    }
+}
+
+fn clipboard_images(args: Cli) {
+    let mut ctx = Clipboard::new().unwrap();
+    let mut clip_old = ctx.get_image();
+    let mut counter = 0;
+    let mut img_count = 1;
+    let mut op = RenderOptions::default();
+    let template = args.image.unwrap();
+    loop {
+        let clip_new = ctx.get_image();
+        if clipboard_image_changed(&clip_old, &clip_new) {
+            match &clip_new {
+                Ok(img) => {
+                    op.variables.insert("i".into(), img_count.to_string());
+                    match template.render(&op) {
+                        Ok(templ) => {
+                            if save_image(img, &templ) {
+                                println!("Saved: {:?}", templ);
+                                img_count += 1;
+                            }
+                        }
+                        Err(e) => eprintln!("{:?}", e),
+                    }
+                }
+                Err(e) => eprintln!("{:?}", e),
+            }
+            counter += 1;
+            if counter == args.count {
+                // counter is never 0 here as it starts from 1 as soon
+                // as a match is found.
+                break;
+            }
+            clip_old = clip_new;
+        }
+        thread::sleep(time::Duration::from_millis(args.refresh_rate));
+    }
 }
 
 fn main() {
@@ -47,6 +122,11 @@ fn main() {
     if !atty::is(atty::Stream::Stdout) && args.count == 0 {
         eprintln!("You have to provide the --count > 0 while piped to avoid infinite loop.");
         process::exit(1);
+    }
+
+    if args.image.is_some() {
+        clipboard_images(args);
+        return;
     }
 
     let regex_pattern = if args.filter.is_empty() {
@@ -72,14 +152,14 @@ fn main() {
     }
 
     let mut file: Option<fs::File> = None;
-    if !args.output.as_os_str().is_empty() {
+    if args.output.is_some() {
         file = Some(
             fs::OpenOptions::new()
                 .write(true)
                 .create(true)
                 .append(args.append)
                 .truncate(!args.append)
-                .open(args.output)
+                .open(args.output.unwrap())
                 .unwrap(),
         );
     }
