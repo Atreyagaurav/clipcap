@@ -5,9 +5,9 @@ use std::fs;
 use std::io::Write;
 // for flush
 use std::path::Path;
-use std::process::Command;
 use std::{io, process, thread, time};
 use string_template_plus::{Render, RenderOptions, Template};
+use subprocess::Exec;
 
 use arboard::{Clipboard, Error, ImageData};
 
@@ -33,8 +33,8 @@ struct Cli {
     #[arg(short, long, group = "text")]
     output: Option<std::path::PathBuf>,
     /// Command to run on each entry
-    #[arg(short, long, default_value = "")]
-    command: String,
+    #[arg(short, long, default_value = "", value_parser=Template::parse_template)]
+    command: Template,
     /// Filter the capture to matching regex pattern
     #[arg(short, long, group = "text", default_value = "")]
     filter: String,
@@ -151,18 +151,24 @@ fn main() {
         process::exit(1);
     }
 
-    let mut file: Option<fs::File> = None;
-    if args.output.is_some() {
-        file = Some(
+    let mut output: Box<dyn Write> = match args.output {
+        Some(out) => Box::new(
             fs::OpenOptions::new()
                 .write(true)
                 .create(true)
                 .append(args.append)
                 .truncate(!args.append)
-                .open(args.output.unwrap())
+                .open(out)
                 .unwrap(),
-        );
-    }
+        ),
+        None => {
+            if args.quiet {
+                Box::new(std::io::empty())
+            } else {
+                Box::new(std::io::stdout())
+            }
+        }
+    };
     let mut ctx = Clipboard::new().unwrap();
 
     #[cfg(target_os = "linux")]
@@ -174,6 +180,7 @@ fn main() {
     let mut clip_txt = ctx.get_text().unwrap_or_else(|_| String::from(""));
 
     let mut counter = 0;
+    let mut op = RenderOptions::default();
     loop {
         #[cfg(target_os = "linux")]
         let clip_new = ctx
@@ -191,26 +198,21 @@ fn main() {
                 continue;
             }
 
-            if !args.quiet {
-                print!("{}{}", clip_new, args.separator);
-                io::stdout().flush().unwrap();
-            }
-            if file.is_some() {
-                file.as_ref()
-                    .unwrap()
-                    .write_all(clip_new.as_bytes())
-                    .expect("Unable to write to file.");
-                file.as_ref()
-                    .unwrap()
-                    .write_all(args.separator.as_bytes())
-                    .expect("Unable to write to file.");
-            }
-            if !args.command.is_empty() {
-                let mut cmd = Command::new(args.command.clone());
-                match cmd.arg(clip_new.clone()).output() {
-                    Ok(_) => (),
-                    Err(e) => eprintln!("Error Executing Command: {}", e),
-                };
+            write!(output, "{}{}", clip_new, args.separator).ok();
+            io::stdout().flush().unwrap();
+            if !args.command.parts().is_empty() {
+                op.variables.insert("i".into(), counter.to_string());
+
+                op.variables.insert("text".into(), clip_new.clone());
+                match args.command.render(&op) {
+                    Ok(cmd) => {
+                        match Exec::shell(cmd).join() {
+                            Ok(_) => (),
+                            Err(e) => eprintln!("Error Executing Command: {}", e),
+                        };
+                    }
+                    Err(e) => eprintln!("{:?}", e),
+                }
             }
 
             clip_txt = clip_new;

@@ -1,6 +1,6 @@
 [package]
 name = "clipcap"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -12,3 +12,4 @@ atty = "0.2"
 regex = "1.6.0"
 image = "0.24.9"
 string-template-plus = "0.4.3"
+subprocess = "0.2.9"
