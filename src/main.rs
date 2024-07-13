@@ -33,6 +33,10 @@ struct Cli {
     #[arg(short, long, group = "text")]
     output: Option<std::path::PathBuf>,
     /// Command to run on each entry
+    ///
+    /// available variables as template
+    /// {text} => copied text
+    /// {i} => counter
     #[arg(short, long, default_value = "", value_parser=Template::parse_template)]
     command: Template,
     /// Filter the capture to matching regex pattern
@@ -68,9 +72,11 @@ fn clipboard_image_changed(
     }
 }
 
-fn save_image<P: AsRef<Path>>(img: &ImageData, filename: P) -> bool {
+fn save_image<P: AsRef<Path>>(img: ImageData, filename: P) -> bool {
     let img = RgbaImage::from_raw(img.width as u32, img.height as u32, img.bytes.to_vec())
         .expect("Clipboard ImageData is invalid");
+    // the saved images are write protected, idk why, need to look into it
+    // I don't remember what I mean by above previously, looks fine now
     if let Err(e) = DynamicImage::ImageRgba8(img).save(filename.as_ref()) {
         eprintln!("f:{:?}", e);
         false
@@ -94,7 +100,7 @@ fn clipboard_images(args: Cli) {
                     op.variables.insert("i".into(), img_count.to_string());
                     match template.render(&op) {
                         Ok(templ) => {
-                            if save_image(img, &templ) {
+                            if save_image(img.clone(), &templ) {
                                 println!("Saved: {:?}", templ);
                                 img_count += 1;
                             }

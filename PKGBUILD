@@ -7,6 +7,7 @@ arch=('x86_64')
 license=('GPL3')
 depends=('gcc-libs')
 makedepends=('rust' 'cargo')
+OPTIONS=(strip !debug)
 
 build() {
 	cargo build --release
